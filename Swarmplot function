@@ -1,0 +1,56 @@
+function swarmplot(datapoints,distance)
+	wave datapoints
+	variable distance
+	// datapoints is a wave containing the datapoints to make the swarmplot for
+	// distance is the minimal distance between all points.
+	variable i, j, currx
+	
+	make /O/N=(dimsize(datapoints,0)) xaxis = NaN
+	make /O/N=(0,2) xy
+	make /O/N=(1,2) currpoint
+	duplicate /O datapoints, temp
+	
+	// We first find the value closest to the mean of the whole range of datapoints, and put that on x=0
+	wavestats /Q datapoints
+	temp-=V_avg
+	temp*=temp
+	wavestats /Q temp
+	xaxis[V_minloc] = 0
+	
+	currpoint[0][0] = datapoints[V_minloc]
+	currpoint[0][1] = 0
+	concatenate /NP=0 {currpoint}, xy
+	
+	// Now we go through all datapoints sequentially and position them on the x-axis such that no two points are
+	// closer together than 'distance'
+	for(i=0;i<dimsize(datapoints,0);i+=1)
+		currx = 0																													// start with trying the point on x=0:
+		if(numtype(xaxis[i])==2)																								// Did we already do this one?
+			do	// while(wavemin(distances)<distance)
+				make /O/N=(dimsize(xy,0)) distances=NaN
+				currpoint[0][0] = datapoints[i]																			// registering the point we're working on.
+				currpoint[0][1] = currx
+				// Distance is defined as the shortest diagonal between the current point and all other points.
+				// We change this in two ways to find something acceptable: increase x and switch pos & neg x
+				
+				// First calculate the distance between the current point and the already known points:
+				for(j=0;j<dimsize(distances,0)-1;j+=1)
+					distances[j] = ((currpoint[0][0]-xy[j][0])^2+(currpoint[0][1]-xy[j][1])^2)^0.5			// pythagoras
+				endfor
+				if(wavemin(distances)<distance)																			// Is this point far enough away from other points?
+					if(currx<0.0000000001)																					// Smaller than (basically) zero?
+						currx*=-1																									// Flip to the other side of x=0 and increase
+						currx+=distance
+					else
+						currx*=-1																									// Only flip to the other side
+					endif
+				endif
+			while(wavemin(distances)<distance)
+			// Found a proper x-postion! We save:
+			concatenate /NP=0 {currpoint}, xy																				// Add to the collection
+			xaxis[i] = currx																									// Register for the output
+		endif
+	endfor
+	
+	killwaves /Z currpoint, xy, distances, temp		// Cleaning
+end
